@@ -112,6 +112,10 @@ def _parse_status(root: Path, raw: bytes, captured_at: str) -> list[dict[str, An
             rel = normalize_relative_path(path_text, root=root)
         except Exception:
             continue
+        # Capsules and sidecars are Portable Handoff's own local metadata;
+        # creating one must not make an otherwise unchanged worktree stale.
+        if rel == ".handoff" or rel.startswith(".handoff/"):
+            continue
         absolute = root / Path(*rel.split("/"))
         exists = absolute.exists() and not absolute.is_symlink()
         status = "untracked" if code == "??" else ("deleted" if "D" in code else ("renamed" if "R" in code else ("copied" if "C" in code else "modified")))

@@ -52,10 +52,13 @@ def atomic_write(path: str | Path, data: bytes | str, *, force: bool = False, ma
     raw = data.encode("utf-8") if isinstance(data, str) else bytes(data)
     if len(raw) > maximum:
         raise LimitError("output exceeds its safety bound")
-    parent = target.parent.resolve()
+    raw_parent = target.parent.absolute()
+    anchor = Path(target.anchor or Path.cwd().anchor or Path.cwd())
+    ensure_no_symlink(raw_parent, root=anchor)
+    parent = raw_parent.resolve()
     parent.mkdir(parents=True, exist_ok=True)
     target = parent / target.name
-    ensure_no_symlink(parent, root=parent.anchor and Path(parent.anchor) or parent)
+    ensure_no_symlink(parent, root=anchor)
     if target.exists() and not force:
         raise CollisionError()
     temp_path: Path | None = None
@@ -98,6 +101,7 @@ def list_capsules(project_root: str | Path) -> list[Path]:
     directory = capsule_directory(project_root)
     if not directory.exists():
         return []
+    ensure_no_symlink(directory, root=Path(project_root).resolve())
     result: list[Path] = []
     for item in directory.iterdir():
         if item.is_file() and not item.is_symlink() and _FILENAME_RE.fullmatch(item.name):
@@ -112,9 +116,16 @@ def latest_capsule(project_root: str | Path) -> Path:
     return capsules[0]
 
 
+def resolve_project_root(cwd: str | Path) -> Path:
+    """Resolve a Git worktree root, falling back to the supplied directory."""
+    from .gitfacts import find_repo_root
+
+    return find_repo_root(cwd) or Path(cwd).resolve()
+
+
 def resolve_capsule(reference: str, *, cwd: str | Path) -> Path:
     if reference == "latest":
-        return latest_capsule(cwd)
+        return latest_capsule(resolve_project_root(cwd))
     candidate = Path(reference)
     if not candidate.is_absolute():
         root = Path(cwd).resolve()
