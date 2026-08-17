@@ -78,6 +78,8 @@ class LocalJsonlHostAdapter(SourceAdapter):
         except Exception as exc:
             raise SourceError("transcript version could not be verified") from exc
         if isinstance(value, dict):
+            if not any(key in value for key in ("id", "uuid", "event_id", "message_id", "role", "message", "content", "text", "type", "events", "messages", "records")):
+                raise SourceError("transcript format could not be verified")
             version = value.get("version") or value.get("schema_version") or value.get("format_version")
             if version is None:
                 return None
