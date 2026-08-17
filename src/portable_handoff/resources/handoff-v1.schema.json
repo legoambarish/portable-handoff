@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portable-handoff.local/schemas/handoff-v1.schema.json",
+  "title": "Portable Handoff v0.1 capsule",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "handoff_id", "created_at", "source", "project", "task", "state", "decisions", "constraints", "user_corrections", "files", "verification", "errors", "next_action", "recent_context", "evidence", "risks", "unknowns", "security", "integrity"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "handoff_id": {"type": "string", "format": "uuid"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "source": {"type": "object"},
+    "project": {"type": "object"},
+    "task": {"type": "object"},
+    "state": {"type": "object"},
+    "decisions": {"type": "array"},
+    "constraints": {"type": "array"},
+    "user_corrections": {"type": "array"},
+    "files": {"type": "array"},
+    "verification": {"type": "array"},
+    "errors": {"type": "array"},
+    "next_action": {"type": "object"},
+    "recent_context": {"type": "array"},
+    "evidence": {"type": "array"},
+    "risks": {"type": "array"},
+    "unknowns": {"type": "array"},
+    "security": {"type": "object"},
+    "integrity": {"type": "object", "required": ["algorithm", "digest"]}
+  }
+}
