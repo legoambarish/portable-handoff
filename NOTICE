@@ -1,0 +1,11 @@
+Portable Handoff
+
+Copyright 2026 Portable Handoff contributors.
+
+This repository is an independent implementation released under the
+Apache License, Version 2.0. See LICENSE for the license text.
+
+No third-party source code, prompts, comments, fixtures, or proprietary
+implementation from the research repositories was incorporated into this
+release. Behavioral research references are recorded in
+THIRD_PARTY_NOTICES.md.
