@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+.handoff/capsules/*.md
+.handoff/evidence/*
+!.handoff/evidence/.gitkeep
+.venv/
+venv/
+*.tmp
+*.part

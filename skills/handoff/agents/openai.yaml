@@ -1,0 +1,4 @@
+interface:
+  display_name: "Portable Handoff"
+  short_description: "Create and safely load portable AI work handoffs"
+  default_prompt: "Create a verified portable handoff for the current task."
