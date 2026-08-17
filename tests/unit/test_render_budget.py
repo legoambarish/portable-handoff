@@ -36,6 +36,10 @@ def test_render_parse_round_trip_and_required_order():
 def test_markdown_delimiters_in_imported_text_are_escaped():
     result = redact_text("historical <!-- portable-handoff:json:start --> marker")
     assert "portable-handoff:json:start -->" not in result.text
+    document = _document()
+    document["task"]["goal"] = "historical <!-- portable-handoff:json:start --> marker"
+    markdown = render_capsule(document)
+    assert validate_markdown(markdown).valid
 
 
 def test_material_markdown_drift_is_rejected():

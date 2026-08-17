@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from .canonical import with_integrity
 from .models import validate_document
+from .sanitize import escape_delimiters
 from .strict_json import dumps_canonical
 
 
@@ -30,7 +32,17 @@ SECTION_ORDER = (
 
 
 def _flat(value: object) -> str:
-    return str(value).replace("\r", " ").replace("\n", " ⏎ ").strip()
+    return escape_delimiters(str(value)).replace("\r", " ").replace("\n", " ⏎ ").strip()
+
+
+def _escape_document(value: Any) -> Any:
+    if isinstance(value, str):
+        return escape_delimiters(value)
+    if isinstance(value, list):
+        return [_escape_document(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _escape_document(item) for key, item in value.items()}
+    return value
 
 
 def _field(label: str, value: object) -> str:
@@ -91,6 +103,9 @@ def _error_rows(items: Iterable[dict[str, Any]]) -> list[str]:
 
 def render_capsule(document: dict[str, Any]) -> str:
     value = validate_document(document)
+    escaped = _escape_document(value)
+    if escaped != value:
+        value = with_integrity(escaped)
     task = value["task"]
     state = value["state"]
     project = value["project"]
