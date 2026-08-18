@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import json
-import math
 import uuid
 
 import pytest
 
-from portable_handoff.canonical import digest_document, verify_integrity, with_integrity
+from portable_handoff.canonical import verify_integrity, with_integrity
 from portable_handoff.errors import IntegrityError, LimitError, SchemaError
 from portable_handoff.models import empty_document, normalize_draft, validate_document
 from portable_handoff.strict_json import canonical_bytes, loads_strict

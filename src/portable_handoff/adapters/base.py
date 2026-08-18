@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from ..bounds import DEFAULT_BOUNDS, Bounds
 from ..errors import SourceError

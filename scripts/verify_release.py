@@ -8,7 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -47,9 +46,27 @@ def verify() -> dict[str, object]:
     from tests.quality.evaluate_quality import build_report
 
     report = build_report()
-    _check(report["scenario_count"] == 10, "quality-ten-scenarios", checks)
+    _check(report["scenario_count"] >= 12, "quality-scenario-coverage", checks)
+    _check(report["runs_real_pipeline"] is True, "quality-exercises-real-pipeline", checks)
     _check(report["all_must_preserve_fields_pass"] is True, "quality-must-preserve-fields", checks)
     _check("dependencies = []" in (ROOT / "pyproject.toml").read_text(encoding="utf-8"), "runtime-has-no-dependencies", checks)
+
+    published = (ROOT / "schemas/handoff-v1.schema.json").read_bytes()
+    packaged = (ROOT / "src/portable_handoff/resources/handoff-v1.schema.json").read_bytes()
+    _check(published == packaged, "schema-copies-identical", checks)
+
+    from portable_handoff.models import SCHEMA_VERSION
+
+    _check(json.loads(published)["properties"]["schema_version"]["const"] == SCHEMA_VERSION, "schema-version-matches-contract", checks)
+
+    stdlib_result = _run_python(["scripts/check_stdlib_only.py"])
+    _check(stdlib_result.returncode == 0, "runtime-imports-stdlib-only", checks)
+
+    _check("Signed-off-by" in (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8"), "contributing-documents-dco", checks)
+    _check("verbatim" in skill, "skill-requires-verbatim-reporting", checks)
+    _check("doctor" in skill, "skill-checks-host-capability", checks)
+    for relative in ("CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CHANGELOG.md", "DCO.txt"):
+        _check((ROOT / relative).is_file(), f"present:{relative}", checks)
     return {"ok": True, "checks": checks}
 
 

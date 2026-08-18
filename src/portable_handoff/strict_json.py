@@ -42,8 +42,6 @@ def loads_strict(data: str | bytes, *, bounds: Bounds = DEFAULT_BOUNDS, label: s
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=_reject_non_finite,
         )
-    except HandoffJSONError:
-        raise
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise SchemaError(f"invalid {label}") from exc
     walk_bounds(value, bounds=bounds, label=label)
@@ -88,3 +86,18 @@ def dumps_canonical(value: Any) -> str:
 
 def canonical_bytes(value: Any) -> bytes:
     return dumps_canonical(value).encode("utf-8")
+
+
+def omit_empty(value: Any) -> Any:
+    """Drop keys whose value is null or an empty list.
+
+    Every reader re-expands these from the schema defaults, so carrying them in
+    the file costs tokens and says nothing. Only the serialized text changes:
+    the integrity digest is always computed over the fully expanded document,
+    so this is not a change to the digest definition.
+    """
+    if isinstance(value, dict):
+        return {key: omit_empty(item) for key, item in value.items() if item is not None and item != []}
+    if isinstance(value, list):
+        return [omit_empty(item) for item in value]
+    return value

@@ -6,7 +6,6 @@ import pytest
 
 from portable_handoff.budgeting import budget_document
 from portable_handoff.canonical import with_integrity
-from portable_handoff.errors import SchemaError
 from portable_handoff.models import empty_document
 from portable_handoff.parse import parse_capsule
 from portable_handoff.render import render_capsule

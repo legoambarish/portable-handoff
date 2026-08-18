@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
 
 from ..bounds import DEFAULT_BOUNDS, Bounds
 from ..errors import SourceError

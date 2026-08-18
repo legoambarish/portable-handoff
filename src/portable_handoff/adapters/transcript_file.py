@@ -10,8 +10,7 @@ from ..bounds import DEFAULT_BOUNDS, Bounds
 from ..errors import SourceError
 from ..sanitize import safe_read_bytes
 from ..strict_json import loads_strict
-from .base import SourceAdapter, TranscriptEvent, normalize_records
-
+from .base import SourceAdapter, TranscriptEvent
 
 SUPPORTED_SUFFIXES = frozenset({".json", ".jsonl", ".md", ".markdown", ".txt"})
 

@@ -6,7 +6,6 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from .adapters.base import TranscriptEvent
 from .adapters.claude import ClaudeAdapter
 from .adapters.codex import CodexAdapter
 from .adapters.cursor import CursorAdapter

@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .errors import HandoffError, ExitCode, SourceError
+from .doctor import diagnose
+from .errors import ExitCode, HandoffError
 from .finalize import finalize
 from .load import load_capsule
 from .preflight import collect_preflight, write_preflight
-from .storage import list_capsules, resolve_project_root
+from .render import JSON_START
+from .storage import list_capsules, read_capsule, resolve_project_root
 from .strict_json import dumps_canonical
 from .validate import validate_file
-
 
 HOSTS = ("codex", "claude", "cursor", "chatgpt", "other", "unknown", "manual")
 
@@ -30,7 +30,10 @@ def build_parser() -> argparse.ArgumentParser:
     preflight.add_argument("--cwd", default=".")
     preflight.add_argument("--source-host", choices=HOSTS, default="unknown")
     preflight.add_argument("--session")
-    preflight.add_argument("--output", default="-")
+    # Default to a file, not stdout. On a large dirty repository the serialized
+    # preflight is hundreds of kilobytes, and printing it puts every byte into
+    # the calling model's context. Pass "-" explicitly to opt back in.
+    preflight.add_argument("--output", default="auto")
 
     final = sub.add_parser("finalize", help="combine facts and a semantic draft into a capsule")
     final.add_argument("--preflight", required=True)
@@ -44,9 +47,17 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--json", action="store_true", dest="json_output")
 
     load = sub.add_parser("load", help="load a capsule or latest capsule")
-    load.add_argument("reference", choices=None)
+    load.add_argument("reference")
     load.add_argument("--cwd", default=".")
     load.add_argument("--format", choices=("briefing", "json"), default="briefing")
+
+    doctor = sub.add_parser("doctor", help="report whether this host can produce a capsule")
+    doctor.add_argument("--cwd", default=".")
+
+    export = sub.add_parser("export", help="emit a smaller view of a capsule for pasting")
+    export.add_argument("capsule")
+    export.add_argument("--cwd", default=".")
+    export.add_argument("--format", choices=("prose", "briefing", "json"), default="prose")
 
     listing = sub.add_parser("list", help="list stored capsules")
     listing.add_argument("--cwd", default=".")
@@ -73,9 +84,21 @@ def _print_json(value: Any) -> None:
 
 def _preflight(args: argparse.Namespace) -> int:
     value = collect_preflight(cwd=args.cwd, source_host=args.source_host, session=args.session)
-    result = write_preflight(value, args.output)
-    if args.output not in (None, "-"):
-        _print_json({"preflight": str(result), "captured_at": value["captured_at"], "git_available": value["git"].get("git_available")})
+    output = args.output
+    if output == "auto":
+        output = str(Path(value["output_locations"]["evidence"]) / f"preflight-{value['preflight_id'][:8]}.json")
+    result = write_preflight(value, output)
+    if output not in (None, "-"):
+        git = value["git"]
+        _print_json({
+            "preflight": str(result),
+            "captured_at": value["captured_at"],
+            "git_available": git.get("git_available"),
+            "branch": git.get("branch"),
+            "dirty": git.get("dirty"),
+            "changed_files": git.get("changed_files_total"),
+            "warnings": value["warnings"],
+        })
     else:
         sys.stdout.write(str(result))
     return 0
@@ -86,7 +109,19 @@ def _finalize(args: argparse.Namespace) -> int:
     if args.output == "-":
         sys.stdout.write(result.markdown)
     else:
-        _print_json({"path": str(result.path) if result.path else None, "valid": True, "redactions": result.redactions, "budget": result.budget.to_dict(), "unknowns": [item["text"] for item in result.document["unknowns"]]})
+        # A single quotable line. The skill instructs models to echo this
+        # verbatim rather than describing what they believe happened, because a
+        # paraphrased success claim is indistinguishable from an invented one.
+        _print_json({
+            "outcome": "created",
+            "path": str(result.path) if result.path else None,
+            "schema_version": result.document["schema_version"],
+            "integrity_digest": result.document["integrity"]["digest"],
+            "validated": True,
+            "redactions": result.redactions,
+            "budget": result.budget.to_dict(),
+            "unknowns": [item["text"] for item in result.document["unknowns"]],
+        })
     return 0
 
 
@@ -104,9 +139,39 @@ def _validate(args: argparse.Namespace) -> int:
 def _load(args: argparse.Namespace) -> int:
     result = load_capsule(args.reference, cwd=args.cwd)
     if args.format == "json":
-        _print_json(result.to_dict())
+        payload = result.to_dict()
+        payload["outcome"] = "loaded"
+        payload["schema_version"] = result.document["schema_version"]
+        payload["staleness_bucket"] = result.staleness.bucket
+        _print_json(payload)
     else:
         sys.stdout.write(result.briefing)
+    return 0
+
+
+def _doctor(args: argparse.Namespace) -> int:
+    report = diagnose(args.cwd)
+    _print_json(report)
+    return 0 if report["capability"] != "unsupported" else int(ExitCode.SOURCE_NOT_FOUND)
+
+
+def _export(args: argparse.Namespace) -> int:
+    """Emit one half of a validated capsule.
+
+    A capsule carries the same content twice: readable prose and the canonical
+    JSON. A reader only ever needs one of them, so pasting the whole file into
+    a chat doubles the cost for nothing.
+    """
+    result = load_capsule(args.capsule, cwd=args.cwd)
+    if args.format == "briefing":
+        sys.stdout.write(result.briefing)
+        return 0
+    if args.format == "json":
+        _print_json(result.document)
+        return 0
+    raw = read_capsule(result.path).decode("utf-8")
+    prose = raw.split(JSON_START, 1)[0].rstrip()
+    sys.stdout.write(prose.replace("## Embedded Canonical JSON", "").rstrip() + chr(10))
     return 0
 
 
@@ -133,6 +198,7 @@ def _source(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
+    args: argparse.Namespace | None = None
     try:
         args = parser.parse_args(argv)
         if args.command == "preflight":
@@ -143,13 +209,17 @@ def main(argv: list[str] | None = None) -> int:
             return _validate(args)
         if args.command == "load":
             return _load(args)
+        if args.command == "doctor":
+            return _doctor(args)
+        if args.command == "export":
+            return _export(args)
         if args.command == "list":
             return _list(args)
         if args.command == "source":
             return _source(args)
         parser.error("a command is required")
     except HandoffError as exc:
-        if getattr(locals().get("args"), "json_output", False) or getattr(locals().get("args"), "format", None) == "json":
+        if getattr(args, "json_output", False) or getattr(args, "format", None) == "json":
             _print_json({"ok": False, "code": int(exc.code), "error": exc.message})
         else:
             sys.stderr.write(exc.message + "\n")

@@ -14,13 +14,18 @@ from .budgeting import BudgetReport, budget_document
 from .canonical import digest_bytes, with_integrity
 from .errors import SchemaError, UnsafePathError
 from .models import Provenance, Trust, empty_document, normalize_draft, now_utc
-from .parse import parse_capsule
 from .preflight import read_preflight
 from .render import render_capsule
-from .sanitize import ensure_no_symlink, normalize_relative_path, sanitize_document
+from .sanitize import (
+    SECRET_PATTERNS_VERSION,
+    count_text_fields,
+    ensure_no_symlink,
+    normalize_relative_path,
+    safe_read_bytes,
+    sanitize_document,
+)
 from .storage import atomic_write, capsule_directory, capsule_filename
 from .strict_json import canonical_bytes, loads_strict
-from .sanitize import safe_read_bytes
 from .validate import validate_markdown
 
 
@@ -43,10 +48,9 @@ def _reject_forged_draft_fields(raw: object) -> None:
     integrity = raw.get("integrity")
     if integrity not in (None, {}):
         raise SchemaError("draft cannot set integrity")
-    project = raw.get("project")
     # A model may mention repository facts in a draft, but those structured
-    # claims are deliberately ignored below. Only the deterministic preflight
-    # supplies the final project object, so a conflict cannot forge evidence.
+    # claims are deliberately ignored. Only the deterministic preflight supplies
+    # the final project object, so a conflict cannot forge evidence.
     evidence = raw.get("evidence")
     if isinstance(evidence, list):
         for item in evidence:
@@ -193,10 +197,40 @@ def _final_document(preflight: dict[str, Any], draft_raw: dict[str, Any]) -> tup
     base["evidence"] = evidence
     if pf_source.get("transcript_source") not in (None, "none", "live_context"):
         base["security"]["untrusted_sources"] = sorted(set(base["security"].get("untrusted_sources", [])) | {f"local_adapter:{pf_source.get('host', 'unknown')}"})
+    scanned = count_text_fields(base)
     clean, redactions = sanitize_document(base)
+    # An empty redaction list is not evidence that anything was checked, so the
+    # capsule records that a scan ran, which rules it used, and how much it saw.
+    clean["security"]["secret_scan"] = {"status": "passed", "patterns_version": SECRET_PATTERNS_VERSION, "fields_scanned": scanned}
+    clean = _derive_blockers(clean, captured_at=captured_at)
     clean, budget = budget_document(clean)
     capsule = with_integrity(clean)
     return capsule, redactions, budget
+
+
+def _derive_blockers(document: dict[str, Any], *, captured_at: str) -> dict[str, Any]:
+    """A capsule that is waiting on a person must say so where blockers are read.
+
+    A future model scans `state.blockers`. Recording the dependency only in
+    `unknowns` or `preconditions` lets that model read "no blockers" and start
+    editing files while a decision is still outstanding.
+    """
+    question = document["next_action"].get("blocking_question")
+    if not question:
+        return document
+    existing = {item["text"] for item in document["state"]["blockers"]}
+    text = "Awaiting a user decision before the next action can proceed; see the blocking question in the next action."
+    if text not in existing:
+        document["state"]["blockers"].append({
+            "text": text,
+            "provenance": Provenance.ASSISTANT.value,
+            "trust": Trust.CLAIMED.value,
+            "evidence_refs": [],
+            "captured_at": captured_at,
+        })
+    if document["state"]["status"] not in ("blocked", "complete"):
+        document["state"]["status"] = "blocked"
+    return document
 
 
 def _output_path(output: str | None, *, preflight: dict[str, Any], document: dict[str, Any]) -> Path | None:

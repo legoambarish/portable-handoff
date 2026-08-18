@@ -5,7 +5,6 @@ import json
 
 import pytest
 
-from portable_handoff.adapters.base import normalize_records
 from portable_handoff.adapters.claude import ClaudeAdapter
 from portable_handoff.adapters.codex import CodexAdapter
 from portable_handoff.adapters.cursor import CursorAdapter

@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
 
 from .bounds import DEFAULT_BOUNDS
 from .errors import CollisionError, LimitError, UnsafePathError
 from .sanitize import ensure_no_symlink, safe_read_bytes
-
 
 _FILENAME_RE = re.compile(r"^\d{8}T\d{6}Z-[a-z0-9][a-z0-9-]{0,63}-[A-Za-z0-9_-]{4,128}\.md$")
 
@@ -37,7 +36,7 @@ def slugify_goal(goal: str) -> str:
 
 
 def capsule_filename(created_at: str, goal: str, handoff_id: str) -> str:
-    timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00")).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00")).astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
     short_id = re.sub(r"[^A-Za-z0-9]", "", handoff_id)[:8].lower() or "unknown1"
     return f"{timestamp}-{slugify_goal(goal)}-{short_id}.md"
 
@@ -68,10 +67,8 @@ def atomic_write(path: str | Path, data: bytes | str, *, force: bool = False, ma
             handle.write(raw)
             handle.flush()
             os.fsync(handle.fileno())
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(temp_path, 0o600)
-        except OSError:
-            pass
         if target.exists() and not force:
             raise CollisionError()
         os.replace(temp_path, target)
@@ -87,10 +84,8 @@ def atomic_write(path: str | Path, data: bytes | str, *, force: bool = False, ma
         return target
     finally:
         if temp_path is not None:
-            try:
+            with contextlib.suppress(OSError):
                 temp_path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
 
 def read_capsule(path: str | Path) -> bytes:
@@ -106,7 +101,15 @@ def list_capsules(project_root: str | Path) -> list[Path]:
     for item in directory.iterdir():
         if item.is_file() and not item.is_symlink() and _FILENAME_RE.fullmatch(item.name):
             result.append(item)
-    return sorted(result, key=lambda path: path.name, reverse=True)[: DEFAULT_BOUNDS.max_filenames]
+    # Two capsules can share a created_at when one preflight is finalized more
+    # than once, so modification time breaks the tie and "latest" stays honest.
+    def _order(path: Path) -> tuple[str, float]:
+        try:
+            return (path.name, path.stat().st_mtime)
+        except OSError:
+            return (path.name, 0.0)
+
+    return sorted(result, key=_order, reverse=True)[: DEFAULT_BOUNDS.max_filenames]
 
 
 def latest_capsule(project_root: str | Path) -> Path:

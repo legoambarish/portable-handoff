@@ -9,7 +9,7 @@ from portable_handoff.errors import CollisionError, UnsafePathError
 from portable_handoff.gitfacts import collect_git_facts, project_from_facts, strip_credentials
 from portable_handoff.models import empty_document
 from portable_handoff.sanitize import normalize_relative_path, redact_text, sanitize_document
-from portable_handoff.storage import atomic_write, capsule_filename, list_capsules
+from portable_handoff.storage import atomic_write, list_capsules
 
 
 @pytest.mark.parametrize(
@@ -68,7 +68,7 @@ def test_atomic_storage_is_no_clobber_and_lists_latest(tmp_path):
 def test_git_facts_are_bounded_and_project_shape(tmp_path):
     facts = collect_git_facts(tmp_path)
     project = project_from_facts(facts)
-    assert set(project) == {"repo_root_hint", "remote", "branch", "commit", "dirty", "changed_files"}
+    assert set(project) == {"repo_root_hint", "remote", "remotes", "branch", "commit", "dirty", "changed_files", "changed_files_total", "worktrees", "head_published"}
     assert "password" not in str(facts).lower()
 
 

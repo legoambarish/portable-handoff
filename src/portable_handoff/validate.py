@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .canonical import verify_integrity
-from .errors import HandoffError, IntegrityError, SchemaError
+from .errors import HandoffError, SchemaError
 from .models import validate_document
 from .parse import ParsedCapsule, parse_capsule
 from .render import render_capsule

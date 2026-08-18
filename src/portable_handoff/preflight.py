@@ -10,11 +10,10 @@ from typing import Any
 
 from .bounds import DEFAULT_BOUNDS
 from .gitfacts import collect_git_facts, project_from_facts
-from .models import Host, now_utc
+from .models import Host
 from .sanitize import safe_read_bytes, sanitize_value
 from .storage import atomic_write, capsule_directory, evidence_directory
 from .strict_json import canonical_bytes, loads_strict
-
 
 PREFLIGHT_FIELDS = frozenset({"preflight_version", "preflight_id", "captured_at", "cwd", "source", "git", "project", "runtime", "output_locations", "warnings"})
 
@@ -44,6 +43,12 @@ def collect_preflight(*, cwd: str | Path = ".", source_host: str | None = None, 
         preflight["warnings"].append("Git was unavailable; repository facts are unknown.")
     elif not facts.get("repo_root"):
         preflight["warnings"].append("The working directory is not a Git repository; repository facts are unknown.")
+    elif not facts.get("remotes"):
+        preflight["warnings"].append("No Git remote is configured; commits in this checkout exist only on this machine.")
+    elif facts.get("head_published") is False:
+        preflight["warnings"].append("HEAD is not reachable from any remote-tracking branch; it has not been pushed.")
+    if len(facts.get("worktrees") or []) > 1:
+        preflight["warnings"].append(f"This repository has {len(facts['worktrees'])} worktrees; repository facts describe the current one only.")
     if facts.get("error"):
         preflight["warnings"].append(str(facts["error"]))
     clean, _ = sanitize_value(preflight)

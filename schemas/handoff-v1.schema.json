@@ -1,98 +1,977 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://portable-handoff.local/schemas/handoff-v1.schema.json",
-  "title": "Portable Handoff v0.1 capsule",
+  "title": "Portable Handoff capsule (schema 1.2)",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "handoff_id", "created_at", "source", "project", "task", "state", "decisions", "constraints", "user_corrections", "files", "verification", "errors", "next_action", "recent_context", "evidence", "risks", "unknowns", "security", "integrity"],
+  "required": [
+    "schema_version",
+    "handoff_id",
+    "created_at",
+    "source",
+    "project",
+    "task",
+    "state",
+    "decisions",
+    "constraints",
+    "user_corrections",
+    "files",
+    "verification",
+    "errors",
+    "next_action",
+    "recent_context",
+    "evidence",
+    "risks",
+    "unknowns",
+    "security",
+    "integrity"
+  ],
   "properties": {
-    "schema_version": {"const": "1.0"},
-    "handoff_id": {"type": "string", "format": "uuid"},
-    "created_at": {"type": "string", "format": "date-time"},
-    "source": {"$ref": "#/$defs/source"},
-    "project": {"$ref": "#/$defs/project"},
-    "task": {"$ref": "#/$defs/task"},
-    "state": {"$ref": "#/$defs/state"},
-    "decisions": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/decision"}},
-    "constraints": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/claim"}},
-    "user_corrections": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/claim"}},
-    "files": {"type": "array", "maxItems": 2000, "items": {"$ref": "#/$defs/file"}},
-    "verification": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/verification"}},
-    "errors": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/error"}},
-    "next_action": {"$ref": "#/$defs/next_action"},
-    "recent_context": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/context"}},
-    "evidence": {"type": "array", "maxItems": 512, "items": {"$ref": "#/$defs/evidence"}},
-    "risks": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/claim"}},
-    "unknowns": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/claim"}},
-    "security": {"$ref": "#/$defs/security"},
-    "integrity": {"$ref": "#/$defs/integrity"}
-  },
-  "$defs": {
-    "provenance": {"type": "string", "enum": ["conversation:user", "conversation:assistant", "tool", "file", "git", "test", "transcript", "model_inference"]},
-    "trust": {"type": "string", "enum": ["verified", "observed", "claimed", "inferred", "untrusted"]},
-    "claim": {
-      "type": "object", "additionalProperties": false,
-      "required": ["text", "provenance", "trust", "evidence_refs", "captured_at"],
-      "properties": {"text": {"type": "string", "minLength": 1}, "provenance": {"$ref": "#/$defs/provenance"}, "trust": {"$ref": "#/$defs/trust"}, "evidence_refs": {"type": "array", "items": {"type": "string"}, "maxItems": 64}, "captured_at": {"type": ["string", "null"]}}
+    "schema_version": {
+      "const": "1.2"
+    },
+    "handoff_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
     },
     "source": {
-      "type": "object", "additionalProperties": false,
-      "required": ["host", "model", "session_id", "transcript_source", "cwd"],
-      "properties": {"host": {"type": "string", "enum": ["codex", "claude", "cursor", "chatgpt", "other", "unknown"]}, "model": {"type": ["string", "null"]}, "session_id": {"type": ["string", "null"]}, "transcript_source": {"type": "string", "enum": ["live_context", "file", "local_adapter", "none"]}, "cwd": {"type": ["string", "null"]}}
+      "$ref": "#/$defs/source"
     },
     "project": {
-      "type": "object", "additionalProperties": false,
-      "required": ["repo_root_hint", "remote", "branch", "commit", "dirty", "changed_files"],
-      "properties": {"repo_root_hint": {"type": ["string", "null"]}, "remote": {"type": ["string", "null"]}, "branch": {"type": ["string", "null"]}, "commit": {"type": ["string", "null"]}, "dirty": {"type": ["boolean", "null"]}, "changed_files": {"type": "array", "maxItems": 2000, "items": {"$ref": "#/$defs/changed_file"}}}
-    },
-    "changed_file": {
-      "type": "object", "additionalProperties": false,
-      "required": ["path", "status", "staged", "hash", "exists", "provenance", "trust", "captured_at"],
-      "properties": {"path": {"type": "string"}, "status": {"type": "string"}, "staged": {"type": "boolean"}, "hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}, "exists": {"type": ["boolean", "null"]}, "provenance": {"$ref": "#/$defs/provenance"}, "trust": {"$ref": "#/$defs/trust"}, "captured_at": {"type": ["string", "null"]}}
+      "$ref": "#/$defs/project"
     },
     "task": {
-      "type": "object", "additionalProperties": false, "required": ["goal", "definition_of_done", "scope_in", "scope_out"],
-      "properties": {"goal": {"type": "string", "minLength": 1}, "definition_of_done": {"type": "array", "items": {"$ref": "#/$defs/claim"}}, "scope_in": {"type": "array", "items": {"$ref": "#/$defs/claim"}}, "scope_out": {"type": "array", "items": {"$ref": "#/$defs/claim"}}}
+      "$ref": "#/$defs/task"
     },
     "state": {
-      "type": "object", "additionalProperties": false, "required": ["status", "completed", "in_progress", "pending", "blockers"],
-      "properties": {"status": {"type": "string", "enum": ["planning", "in_progress", "blocked", "verification", "complete", "unknown"]}, "completed": {"type": "array", "items": {"$ref": "#/$defs/claim"}}, "in_progress": {"type": "array", "items": {"$ref": "#/$defs/claim"}}, "pending": {"type": "array", "items": {"$ref": "#/$defs/claim"}}, "blockers": {"type": "array", "items": {"$ref": "#/$defs/claim"}}}
+      "$ref": "#/$defs/state"
     },
-    "decision": {
-      "type": "object", "additionalProperties": false, "required": ["decision_id", "statement", "rationale", "status", "provenance", "trust", "evidence_refs", "captured_at"],
-      "properties": {"decision_id": {"type": "string"}, "statement": {"type": "string", "minLength": 1}, "rationale": {"type": "string"}, "status": {"type": "string", "enum": ["active", "superseded"]}, "provenance": {"$ref": "#/$defs/provenance"}, "trust": {"$ref": "#/$defs/trust"}, "evidence_refs": {"type": "array", "items": {"type": "string"}}, "captured_at": {"type": ["string", "null"]}}
+    "decisions": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
     },
-    "file": {
-      "type": "object", "additionalProperties": false, "required": ["path", "symbols", "role", "hash", "exists", "provenance", "trust", "evidence_refs", "captured_at"],
-      "properties": {"path": {"type": "string", "minLength": 1}, "symbols": {"type": "array", "items": {"type": "string"}}, "role": {"type": ["string", "null"]}, "hash": {"type": ["string", "null"]}, "exists": {"type": ["boolean", "null"]}, "provenance": {"$ref": "#/$defs/provenance"}, "trust": {"$ref": "#/$defs/trust"}, "evidence_refs": {"type": "array", "items": {"type": "string"}}, "captured_at": {"type": ["string", "null"]}}
+    "constraints": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
+    },
+    "user_corrections": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
+    },
+    "files": {
+      "type": "array",
+      "maxItems": 2000,
+      "items": {
+        "$ref": "#/$defs/file"
+      }
     },
     "verification": {
-      "type": "object", "additionalProperties": false, "required": ["name", "command", "status", "summary", "commit", "captured_at", "provenance", "trust", "evidence_refs"],
-      "properties": {"name": {"type": "string", "minLength": 1}, "command": {"type": ["string", "null"]}, "status": {"type": "string", "enum": ["passed", "failed", "not_run", "unknown"]}, "summary": {"type": "string"}, "commit": {"type": ["string", "null"]}, "captured_at": {"type": ["string", "null"]}, "provenance": {"$ref": "#/$defs/provenance"}, "trust": {"$ref": "#/$defs/trust"}, "evidence_refs": {"type": "array", "items": {"type": "string"}}}
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/verification"
+      }
     },
-    "error": {
-      "type": "object", "additionalProperties": false, "required": ["error", "fix", "status", "command", "provenance", "trust", "evidence_refs", "captured_at"],
-      "properties": {"error": {"type": "string", "minLength": 1}, "fix": {"type": ["string", "null"]}, "status": {"type": ["string", "null"]}, "command": {"type": ["string", "null"]}, "provenance": {"$ref": "#/$defs/provenance"}, "trust": {"$ref": "#/$defs/trust"}, "evidence_refs": {"type": "array", "items": {"type": "string"}}, "captured_at": {"type": ["string", "null"]}}
+    "errors": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/error"
+      }
     },
     "next_action": {
-      "type": "object", "additionalProperties": false, "required": ["instruction", "file", "command", "preconditions"],
-      "properties": {"instruction": {"type": "string", "minLength": 1}, "file": {"type": ["string", "null"]}, "command": {"type": ["string", "null"]}, "preconditions": {"type": "array", "items": {"type": "string"}, "maxItems": 64}}
+      "$ref": "#/$defs/next_action"
     },
-    "context": {
-      "type": "object", "additionalProperties": false, "required": ["role", "text", "timestamp", "provenance", "trust", "evidence_refs"],
-      "properties": {"role": {"type": "string"}, "text": {"type": "string"}, "timestamp": {"type": ["string", "null"]}, "provenance": {"$ref": "#/$defs/provenance"}, "trust": {"$ref": "#/$defs/trust"}, "evidence_refs": {"type": "array", "items": {"type": "string"}}}
+    "recent_context": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/context"
+      }
     },
     "evidence": {
-      "type": "object", "additionalProperties": false, "required": ["evidence_id", "kind", "source", "digest", "summary", "captured_at", "provenance", "trust"],
-      "properties": {"evidence_id": {"type": "string"}, "kind": {"type": "string"}, "source": {"type": "string"}, "digest": {"type": ["string", "null"]}, "summary": {"type": "string"}, "captured_at": {"type": ["string", "null"]}, "provenance": {"$ref": "#/$defs/provenance"}, "trust": {"$ref": "#/$defs/trust"}}
+      "type": "array",
+      "maxItems": 512,
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "risks": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
     },
     "security": {
-      "type": "object", "additionalProperties": false, "required": ["redactions", "untrusted_sources"],
-      "properties": {"redactions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["kind", "count"], "properties": {"kind": {"type": "string"}, "count": {"type": "integer", "minimum": 0}}}}, "untrusted_sources": {"type": "array", "items": {"type": "string"}}}
+      "$ref": "#/$defs/security"
     },
     "integrity": {
-      "type": "object", "additionalProperties": false, "required": ["algorithm", "digest"],
-      "properties": {"algorithm": {"const": "sha256"}, "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+      "$ref": "#/$defs/integrity"
+    }
+  },
+  "$defs": {
+    "provenance": {
+      "type": "string",
+      "enum": [
+        "conversation:user",
+        "conversation:assistant",
+        "tool",
+        "file",
+        "git",
+        "test",
+        "transcript",
+        "model_inference"
+      ]
+    },
+    "trust": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "observed",
+        "claimed",
+        "inferred",
+        "untrusted"
+      ],
+      "description": "verified requires a deterministic provenance (git, tool, test, file, transcript); it is downgraded to claimed otherwise."
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "provenance",
+        "trust",
+        "evidence_refs",
+        "captured_at"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "trust": {
+          "$ref": "#/$defs/trust"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "captured_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "model",
+        "session_id",
+        "transcript_source",
+        "cwd"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "enum": [
+            "codex",
+            "claude",
+            "cursor",
+            "chatgpt",
+            "other",
+            "unknown"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "transcript_source": {
+          "type": "string",
+          "enum": [
+            "live_context",
+            "file",
+            "local_adapter",
+            "none"
+          ]
+        },
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repo_root_hint",
+        "remote",
+        "remotes",
+        "branch",
+        "commit",
+        "dirty",
+        "changed_files",
+        "changed_files_total",
+        "worktrees",
+        "head_published"
+      ],
+      "properties": {
+        "repo_root_hint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remote": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dirty": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "changed_files": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/changed_file"
+          }
+        },
+        "remotes": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/remote_entry"
+          }
+        },
+        "worktrees": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/worktree"
+          }
+        },
+        "head_published": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Whether the recorded commit is reachable from any remote-tracking branch. False means it exists only locally."
+        },
+        "changed_files_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total modified files observed. May exceed the recorded sample in changed_files."
+        }
+      }
+    },
+    "changed_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "orig_path",
+        "status",
+        "staged",
+        "hash",
+        "exists",
+        "provenance",
+        "trust",
+        "captured_at"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "staged": {
+          "type": "boolean"
+        },
+        "hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "exists": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "trust": {
+          "$ref": "#/$defs/trust"
+        },
+        "captured_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "orig_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Previous path for a renamed or copied entry."
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal",
+        "definition_of_done",
+        "scope_in",
+        "scope_out"
+      ],
+      "properties": {
+        "goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "definition_of_done": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        },
+        "scope_in": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        },
+        "scope_out": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "completed",
+        "in_progress",
+        "pending",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "planning",
+            "in_progress",
+            "blocked",
+            "verification",
+            "complete",
+            "unknown"
+          ]
+        },
+        "completed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        },
+        "in_progress": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "statement",
+        "rationale",
+        "status",
+        "provenance",
+        "trust",
+        "evidence_refs",
+        "captured_at"
+      ],
+      "properties": {
+        "decision_id": {
+          "type": "string"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "superseded"
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "trust": {
+          "$ref": "#/$defs/trust"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "captured_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "symbols",
+        "role",
+        "hash",
+        "exists",
+        "provenance",
+        "trust",
+        "evidence_refs",
+        "captured_at"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "symbols": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exists": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "trust": {
+          "$ref": "#/$defs/trust"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "captured_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "command",
+        "status",
+        "summary",
+        "commit",
+        "captured_at",
+        "provenance",
+        "trust",
+        "evidence_refs"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "not_run",
+            "unknown"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "commit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "captured_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "trust": {
+          "$ref": "#/$defs/trust"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error",
+        "fix",
+        "status",
+        "command",
+        "provenance",
+        "trust",
+        "evidence_refs",
+        "captured_at"
+      ],
+      "properties": {
+        "error": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "trust": {
+          "$ref": "#/$defs/trust"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "captured_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "next_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instruction",
+        "file",
+        "cwd",
+        "command",
+        "blocking_question",
+        "preconditions"
+      ],
+      "properties": {
+        "instruction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Repository-relative path. Absolute paths and traversal are rejected."
+        },
+        "command": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Untrusted text. Never executed by the tool; displayed for operator review."
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Repository-relative directory the step runs in."
+        },
+        "blocking_question": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "A user decision that must be answered before the step can begin."
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "text",
+        "timestamp",
+        "provenance",
+        "trust",
+        "evidence_refs"
+      ],
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "trust": {
+          "$ref": "#/$defs/trust"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id",
+        "kind",
+        "source",
+        "digest",
+        "summary",
+        "captured_at",
+        "provenance",
+        "trust"
+      ],
+      "properties": {
+        "evidence_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "captured_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "trust": {
+          "$ref": "#/$defs/trust"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "redactions",
+        "untrusted_sources",
+        "secret_scan"
+      ],
+      "properties": {
+        "redactions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "count"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "untrusted_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secret_scan": {
+          "$ref": "#/$defs/secret_scan"
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "digest"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "description": "Unkeyed SHA-256 over the canonical JSON with this field removed. Detects corruption, not tampering."
+    },
+    "remote_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "url"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "worktree": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "branch",
+        "commit",
+        "is_current"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "commit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{40,64}$"
+        },
+        "is_current": {
+          "type": "boolean"
+        }
+      }
+    },
+    "secret_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "patterns_version",
+        "fields_scanned"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "not_run",
+            "unknown"
+          ]
+        },
+        "patterns_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fields_scanned": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   }
 }

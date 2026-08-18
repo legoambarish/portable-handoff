@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
-from .bounds import DEFAULT_BOUNDS, Bounds, require_text
+from .bounds import DEFAULT_BOUNDS
 from .errors import BusySourceError, LimitError, UnsafePathError
 
 
@@ -26,6 +26,10 @@ class SanitizedText:
     redactions: tuple[Redaction, ...] = ()
     truncated: bool = False
 
+
+# Bumped whenever the pattern set below changes, so a capsule records which
+# rules were actually applied to it rather than implying a timeless guarantee.
+SECRET_PATTERNS_VERSION = "2026.08.1"
 
 # These are intentionally high-confidence families, not a copied vendor rule
 # corpus. Values are replaced without ever returning or logging the match.
@@ -44,24 +48,51 @@ _DELIMITER_TEXT = (
     "<!-- portable-handoff:json:start -->",
     "<!-- portable-handoff:json:end -->",
 )
+# Code points that reorder or hide text for a human reviewer while a model
+# still consumes them. Capsules get read by eye before they are trusted, so the
+# reviewer needs to see what the model sees. Removed outright, and counted, so
+# an injection attempt shows up in the security report.
+_INVISIBLE_CODEPOINTS = frozenset(
+    {
+        0x00AD,  # soft hyphen
+        0x061C,  # Arabic letter mark
+        0x200B, 0x200C, 0x200D,  # zero-width space, non-joiner, joiner
+        0x200E, 0x200F,  # left-to-right and right-to-left marks
+        0x202A, 0x202B, 0x202C, 0x202D, 0x202E,  # bidi embedding and override
+        0x2060, 0x2061, 0x2062, 0x2063, 0x2064,  # word joiner, invisible ops
+        0x2066, 0x2067, 0x2068, 0x2069,  # bidi isolates
+        0xFEFF,  # zero-width no-break space
+    }
+)
 
 
-def _safe_controls(text: str) -> str:
+def _safe_controls(text: str) -> tuple[str, int]:
+    """Strip terminal control sequences and invisible/bidi code points.
+
+    Returns the cleaned text and the number of invisible code points removed.
+    """
     text = _ANSI_RE.sub("", text)
     output: list[str] = []
+    invisible = 0
     for char in text:
         code = ord(char)
+        if code in _INVISIBLE_CODEPOINTS:
+            invisible += 1
+            continue
         if char in "\n\t" or code >= 0x20:
             if code != 0x7F:
                 output.append(char)
         else:
             output.append(" ")
-    return "".join(output)
+    return "".join(output), invisible
 
 
 def redact_text(value: str, *, maximum: int = DEFAULT_BOUNDS.max_string_chars) -> SanitizedText:
-    text = unicodedata.normalize("NFC", _safe_controls(value))
+    cleaned, invisible = _safe_controls(value)
+    text = unicodedata.normalize("NFC", cleaned)
     redactions: list[Redaction] = []
+    if invisible:
+        redactions.append(Redaction("invisible_character", invisible))
     for kind, pattern, replacement in _SECRET_PATTERNS:
         text, count = pattern.subn(replacement, text)
         if count:
@@ -109,13 +140,13 @@ def sanitize_value(value: Any, *, key: str | None = None, maximum: int = DEFAULT
             all_redactions.extend(found)
         return output, all_redactions
     if isinstance(value, dict):
-        output: dict[str, Any] = {}
+        mapping: dict[str, Any] = {}
         all_redactions = []
         for item_key, item in value.items():
             clean, found = sanitize_value(item, key=item_key, maximum=maximum)
-            output[item_key] = clean
+            mapping[item_key] = clean
             all_redactions.extend(found)
-        return output, all_redactions
+        return mapping, all_redactions
     return value, []
 
 
@@ -133,6 +164,17 @@ def sanitize_document(document: dict[str, Any]) -> tuple[dict[str, Any], list[di
         merged[raw["kind"]] = merged.get(raw["kind"], 0) + raw["count"]
     security["redactions"] = [{"kind": kind, "count": merged[kind]} for kind in sorted(merged)]
     return clean, security["redactions"]
+
+
+def count_text_fields(value: Any) -> int:
+    """Count the string values a scan would inspect, for an honest scan report."""
+    if isinstance(value, str):
+        return 1
+    if isinstance(value, list):
+        return sum(count_text_fields(item) for item in value)
+    if isinstance(value, dict):
+        return sum(count_text_fields(item) for item in value.values())
+    return 0
 
 
 def normalize_relative_path(value: str, *, root: str | Path | None = None, allow_empty: bool = False) -> str:
@@ -185,7 +227,7 @@ def _is_reparse_or_symlink(path: Path) -> bool:
 def ensure_no_symlink(path: Path, *, root: Path | None = None) -> None:
     path = path.absolute()
     if root is None:
-        root = path.anchor and Path(path.anchor) or Path.cwd().anchor and Path(Path.cwd().anchor) or Path.cwd()
+        root = (path.anchor and Path(path.anchor)) or (Path.cwd().anchor and Path(Path.cwd().anchor)) or Path.cwd()
     root = root.absolute()
     try:
         relative = path.relative_to(root)
@@ -202,7 +244,7 @@ def safe_read_bytes(path: str | Path, *, maximum: int = DEFAULT_BOUNDS.max_capsu
     candidate = Path(path)
     if root is not None:
         root_path = Path(root).resolve()
-        resolved = candidate.resolve(strict=False) if not candidate.is_absolute() else candidate.resolve(strict=False)
+        resolved = candidate.resolve(strict=False)
         try:
             if os.path.commonpath((str(root_path), str(resolved))) != str(root_path):
                 raise UnsafePathError("read path escapes allowed root")

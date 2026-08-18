@@ -1,0 +1,6 @@
+# Capsules and their fixtures are compared byte-for-byte, so line endings must
+# not depend on which platform checked the repository out.
+* text=auto eol=lf
+*.png binary
+*.whl binary
+*.tar.gz binary

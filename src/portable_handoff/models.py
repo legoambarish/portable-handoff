@@ -4,18 +4,31 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Mapping
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
 
-from .bounds import DEFAULT_BOUNDS, Bounds, require_count, require_text, walk_bounds
+from .bounds import DEFAULT_BOUNDS, require_text, walk_bounds
 from .errors import SchemaError
+from .sanitize import normalize_relative_path
+
+SCHEMA_VERSION = "1.2"
+
+# Provenances a deterministic check can stand behind. A claim sourced from
+# conversation or from the model's own reasoning is never `verified`, whatever
+# the draft asserts, since that would let a model promote its own recollection
+# into a fact.
+DETERMINISTIC_PROVENANCES = frozenset({"git", "tool", "test", "file", "transcript"})
+# Schema 1.0 shipped only in pre-release builds. It is rejected with a specific
+# message rather than silently accepted, because 1.1 adds fields a 1.0 reader
+# would not know to distrust (worktrees, blocking questions, secret-scan state).
+SUPERSEDED_SCHEMA_VERSIONS = frozenset({"1.0", "1.1"})
 
 
-class _TextEnum(str, Enum):
-    def __str__(self) -> str:
-        return self.value
+class _TextEnum(StrEnum):
+    """Base for the closed vocabularies the capsule format depends on."""
 
 
 class Host(_TextEnum):
@@ -44,6 +57,13 @@ class TaskStatus(_TextEnum):
 
 
 class VerificationStatus(_TextEnum):
+    PASSED = "passed"
+    FAILED = "failed"
+    NOT_RUN = "not_run"
+    UNKNOWN = "unknown"
+
+
+class ScanStatus(_TextEnum):
     PASSED = "passed"
     FAILED = "failed"
     NOT_RUN = "not_run"
@@ -106,7 +126,7 @@ _HEX_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 
 def now_utc() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def is_rfc3339_utc(value: object) -> bool:
@@ -142,6 +162,13 @@ def _nullable_text(value: object, *, label: str, maximum: int = DEFAULT_BOUNDS.m
     if value is None:
         return None
     return _text(value, label=label, maximum=maximum)
+
+
+def cap_trust(provenance: str, trust: str) -> str:
+    """Downgrade `verified` to `claimed` when the source cannot support it."""
+    if trust == Trust.VERIFIED.value and provenance not in DETERMINISTIC_PROVENANCES:
+        return Trust.CLAIMED.value
+    return trust
 
 
 def _enum(value: object, allowed: frozenset[str], *, label: str) -> str:
@@ -187,7 +214,7 @@ def _claim(value: object, *, label: str, default_provenance: str = Provenance.MO
     captured = value.get("captured_at")
     if captured is not None and not is_rfc3339_utc(captured):
         raise SchemaError(f"{label}.captured_at must be RFC3339 UTC")
-    return {"text": text, "provenance": provenance, "trust": trust, "evidence_refs": refs, "captured_at": captured}
+    return {"text": text, "provenance": provenance, "trust": cap_trust(provenance, trust), "evidence_refs": refs, "captured_at": captured}
 
 
 def _claims(value: object, *, label: str, maximum_items: int = DEFAULT_BOUNDS.max_list_items) -> list[dict[str, Any]]:
@@ -221,7 +248,7 @@ def _decisions(value: object) -> list[dict[str, Any]]:
         captured = raw.get("captured_at")
         if captured is not None and not is_rfc3339_utc(captured):
             raise SchemaError("decision.captured_at must be RFC3339 UTC")
-        result.append({"decision_id": decision_id, "statement": statement, "rationale": rationale, "status": status, "provenance": provenance, "trust": trust, "evidence_refs": refs, "captured_at": captured})
+        result.append({"decision_id": decision_id, "statement": statement, "rationale": rationale, "status": status, "provenance": provenance, "trust": cap_trust(provenance, trust), "evidence_refs": refs, "captured_at": captured})
     return result
 
 
@@ -284,7 +311,7 @@ def _verification(value: object) -> list[dict[str, Any]]:
         provenance = _enum(raw.get("provenance", Provenance.MODEL_INFERENCE.value), PROVENANCE_VALUES, label="verification.provenance")
         trust = _enum(raw.get("trust", Trust.CLAIMED.value), TRUST_VALUES, label="verification.trust")
         refs = _string_list(raw.get("evidence_refs", []), label="verification.evidence_refs", maximum_items=64, item_chars=128)
-        result.append({"name": name, "command": command, "status": status, "summary": summary, "commit": commit, "captured_at": captured, "provenance": provenance, "trust": trust, "evidence_refs": refs})
+        result.append({"name": name, "command": command, "status": status, "summary": summary, "commit": commit, "captured_at": captured, "provenance": provenance, "trust": cap_trust(provenance, trust), "evidence_refs": refs})
     return result
 
 
@@ -311,7 +338,7 @@ def _errors(value: object) -> list[dict[str, Any]]:
         captured = raw.get("captured_at")
         if captured is not None and not is_rfc3339_utc(captured):
             raise SchemaError("error.captured_at must be RFC3339 UTC")
-        result.append({"error": error, "fix": fix, "status": status, "command": command, "provenance": provenance, "trust": trust, "evidence_refs": refs, "captured_at": captured})
+        result.append({"error": error, "fix": fix, "status": status, "command": command, "provenance": provenance, "trust": cap_trust(provenance, trust), "evidence_refs": refs, "captured_at": captured})
     return result
 
 
@@ -336,7 +363,7 @@ def _recent_context(value: object) -> list[dict[str, Any]]:
         provenance = _enum(raw.get("provenance", Provenance.MODEL_INFERENCE.value), PROVENANCE_VALUES, label="recent_context.provenance")
         trust = _enum(raw.get("trust", Trust.CLAIMED.value), TRUST_VALUES, label="recent_context.trust")
         refs = _string_list(raw.get("evidence_refs", []), label="recent_context.evidence_refs", maximum_items=64, item_chars=128)
-        result.append({"role": role, "text": text, "timestamp": timestamp, "provenance": provenance, "trust": trust, "evidence_refs": refs})
+        result.append({"role": role, "text": text, "timestamp": timestamp, "provenance": provenance, "trust": cap_trust(provenance, trust), "evidence_refs": refs})
     return result
 
 
@@ -382,8 +409,48 @@ def _source(value: object) -> dict[str, Any]:
     return {"host": host, "model": model, "session_id": session_id, "transcript_source": transcript_source, "cwd": cwd}
 
 
-PROJECT_FIELDS = {"repo_root_hint", "remote", "branch", "commit", "dirty", "changed_files"}
-CHANGED_FILE_FIELDS = {"path", "status", "staged", "hash", "exists", "provenance", "trust", "captured_at"}
+PROJECT_FIELDS = {"repo_root_hint", "remote", "remotes", "branch", "commit", "dirty", "changed_files", "changed_files_total", "worktrees", "head_published"}
+CHANGED_FILE_FIELDS = {"path", "orig_path", "status", "staged", "hash", "exists", "provenance", "trust", "captured_at"}
+REMOTE_FIELDS = {"name", "url"}
+WORKTREE_FIELDS = {"path", "branch", "commit", "is_current"}
+
+
+def _remotes(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 64:
+        raise SchemaError("project.remotes must be a bounded list")
+    result: list[dict[str, Any]] = []
+    for raw in value:
+        if not isinstance(raw, dict):
+            raise SchemaError("project.remotes item must be an object")
+        _closed(raw, REMOTE_FIELDS, "project.remotes item")
+        result.append({
+            "name": _text(raw.get("name", ""), label="remote.name", maximum=256, allow_empty=False),
+            "url": _nullable_text(raw.get("url"), label="remote.url", maximum=2_048),
+        })
+    return result
+
+
+def _worktrees(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 64:
+        raise SchemaError("project.worktrees must be a bounded list")
+    result: list[dict[str, Any]] = []
+    for raw in value:
+        if not isinstance(raw, dict):
+            raise SchemaError("project.worktrees item must be an object")
+        _closed(raw, WORKTREE_FIELDS, "project.worktrees item")
+        commit = _nullable_text(raw.get("commit"), label="worktree.commit", maximum=64)
+        if commit is not None and not re.fullmatch(r"[0-9a-f]{40,64}", commit):
+            raise SchemaError("worktree.commit must be a Git SHA")
+        is_current = raw.get("is_current", False)
+        if not isinstance(is_current, bool):
+            raise SchemaError("worktree.is_current must be boolean")
+        result.append({
+            "path": _text(raw.get("path", ""), label="worktree.path", maximum=DEFAULT_BOUNDS.max_path_chars, allow_empty=False),
+            "branch": _nullable_text(raw.get("branch"), label="worktree.branch", maximum=512),
+            "commit": commit,
+            "is_current": is_current,
+        })
+    return result
 
 
 def _changed_files(value: object) -> list[dict[str, Any]]:
@@ -397,6 +464,7 @@ def _changed_files(value: object) -> list[dict[str, Any]]:
             raise SchemaError("changed file must be an object")
         _closed(raw, CHANGED_FILE_FIELDS, "project.changed_files item")
         path = _text(raw.get("path", ""), label="changed_file.path", maximum=DEFAULT_BOUNDS.max_path_chars, allow_empty=False)
+        orig_path = _nullable_text(raw.get("orig_path"), label="changed_file.orig_path", maximum=DEFAULT_BOUNDS.max_path_chars)
         status = _text(raw.get("status", "unknown"), label="changed_file.status", maximum=16, allow_empty=False)
         staged = raw.get("staged", False)
         if not isinstance(staged, bool):
@@ -412,7 +480,7 @@ def _changed_files(value: object) -> list[dict[str, Any]]:
         captured = raw.get("captured_at")
         if captured is not None and not is_rfc3339_utc(captured):
             raise SchemaError("changed_file.captured_at must be RFC3339 UTC")
-        result.append({"path": path, "status": status, "staged": staged, "hash": digest, "exists": exists, "provenance": provenance, "trust": trust, "captured_at": captured})
+        result.append({"path": path, "orig_path": orig_path, "status": status, "staged": staged, "hash": digest, "exists": exists, "provenance": provenance, "trust": trust, "captured_at": captured})
     return result
 
 
@@ -429,7 +497,25 @@ def _project(value: object) -> dict[str, Any]:
     dirty = value.get("dirty")
     if dirty is not None and not isinstance(dirty, bool):
         raise SchemaError("project.dirty must be boolean or null")
-    return {"repo_root_hint": root, "remote": remote, "branch": branch, "commit": commit, "dirty": dirty, "changed_files": _changed_files(value.get("changed_files", []))}
+    published = value.get("head_published")
+    if published is not None and not isinstance(published, bool):
+        raise SchemaError("project.head_published must be boolean or null")
+    recorded = _changed_files(value.get("changed_files", []))
+    total = value.get("changed_files_total", len(recorded))
+    if not isinstance(total, int) or isinstance(total, bool) or total < 0:
+        raise SchemaError("project.changed_files_total must be a non-negative integer")
+    return {
+        "repo_root_hint": root,
+        "remote": remote,
+        "remotes": _remotes(value.get("remotes", [])),
+        "branch": branch,
+        "commit": commit,
+        "dirty": dirty,
+        "changed_files": recorded,
+        "changed_files_total": max(total, len(recorded)),
+        "worktrees": _worktrees(value.get("worktrees", [])),
+        "head_published": published,
+    }
 
 
 def _task(value: object) -> dict[str, Any]:
@@ -453,18 +539,27 @@ def _next_action(value: object) -> dict[str, Any]:
         value = {"instruction": value}
     if not isinstance(value, dict):
         raise SchemaError("next_action must be an object")
-    _closed(value, {"instruction", "file", "command", "preconditions"}, "next_action")
+    _closed(value, {"instruction", "file", "cwd", "command", "blocking_question", "preconditions"}, "next_action")
     instruction = _text(value.get("instruction", ""), label="next_action.instruction", maximum=DEFAULT_BOUNDS.max_event_chars, allow_empty=False)
     file = _nullable_text(value.get("file"), label="next_action.file", maximum=DEFAULT_BOUNDS.max_path_chars)
+    if file:
+        # A capsule may be loaded into any checkout, so a next-action path must
+        # stay inside the target repository. Absolute paths and traversal are
+        # rejected here rather than at the point of use.
+        file = normalize_relative_path(file)
+    cwd = _nullable_text(value.get("cwd"), label="next_action.cwd", maximum=DEFAULT_BOUNDS.max_path_chars)
+    if cwd:
+        cwd = normalize_relative_path(cwd)
     command = _nullable_text(value.get("command"), label="next_action.command", maximum=2_048)
+    blocking_question = _nullable_text(value.get("blocking_question"), label="next_action.blocking_question", maximum=DEFAULT_BOUNDS.max_event_chars)
     preconditions = _string_list(value.get("preconditions", []), label="next_action.preconditions", maximum_items=64, item_chars=DEFAULT_BOUNDS.max_event_chars)
-    return {"instruction": instruction, "file": file, "command": command, "preconditions": preconditions}
+    return {"instruction": instruction, "file": file, "cwd": cwd, "command": command, "blocking_question": blocking_question, "preconditions": preconditions}
 
 
 def _security(value: object) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise SchemaError("security must be an object")
-    _closed(value, {"redactions", "untrusted_sources"}, "security")
+    _closed(value, {"redactions", "untrusted_sources", "secret_scan"}, "security")
     redactions_raw = value.get("redactions", [])
     if not isinstance(redactions_raw, list) or len(redactions_raw) > DEFAULT_BOUNDS.max_list_items:
         raise SchemaError("security.redactions must be a bounded list")
@@ -480,7 +575,28 @@ def _security(value: object) -> dict[str, Any]:
         if not isinstance(count, int) or isinstance(count, bool) or count < 0 or count > 1_000_000:
             raise SchemaError("security.redaction.count must be a bounded integer")
         redactions.append({"kind": kind, "count": count})
-    return {"redactions": redactions, "untrusted_sources": _string_list(value.get("untrusted_sources", []), label="security.untrusted_sources", maximum_items=DEFAULT_BOUNDS.max_list_items, item_chars=DEFAULT_BOUNDS.max_path_chars)}
+    return {
+        "redactions": redactions,
+        "untrusted_sources": _string_list(value.get("untrusted_sources", []), label="security.untrusted_sources", maximum_items=DEFAULT_BOUNDS.max_list_items, item_chars=DEFAULT_BOUNDS.max_path_chars),
+        "secret_scan": _secret_scan(value.get("secret_scan")),
+    }
+
+
+def _secret_scan(value: object) -> dict[str, Any]:
+    """An empty redaction list means nothing unless a scan is known to have run."""
+    if value is None:
+        return {"status": ScanStatus.NOT_RUN.value, "patterns_version": None, "fields_scanned": 0}
+    if not isinstance(value, dict):
+        raise SchemaError("security.secret_scan must be an object")
+    _closed(value, {"status", "patterns_version", "fields_scanned"}, "security.secret_scan")
+    scanned = value.get("fields_scanned", 0)
+    if not isinstance(scanned, int) or isinstance(scanned, bool) or scanned < 0 or scanned > 10_000_000:
+        raise SchemaError("security.secret_scan.fields_scanned must be a bounded integer")
+    return {
+        "status": _enum(value.get("status", ScanStatus.NOT_RUN.value), frozenset(item.value for item in ScanStatus), label="security.secret_scan.status"),
+        "patterns_version": _nullable_text(value.get("patterns_version"), label="security.secret_scan.patterns_version", maximum=64),
+        "fields_scanned": scanned,
+    }
 
 
 def _integrity(value: object, *, allow_missing: bool) -> dict[str, Any]:
@@ -502,11 +618,11 @@ def _integrity(value: object, *, allow_missing: bool) -> dict[str, Any]:
 
 def empty_document(*, handoff_id: str | None = None, created_at: str | None = None) -> dict[str, Any]:
     return {
-        "schema_version": "1.0",
+        "schema_version": SCHEMA_VERSION,
         "handoff_id": handoff_id or str(uuid.uuid4()),
         "created_at": created_at or now_utc(),
         "source": {"host": Host.UNKNOWN.value, "model": None, "session_id": None, "transcript_source": TranscriptSource.NONE.value, "cwd": None},
-        "project": {"repo_root_hint": None, "remote": None, "branch": None, "commit": None, "dirty": None, "changed_files": []},
+        "project": {"repo_root_hint": None, "remote": None, "remotes": [], "branch": None, "commit": None, "dirty": None, "changed_files": [], "changed_files_total": 0, "worktrees": [], "head_published": None},
         "task": {"goal": "", "definition_of_done": [], "scope_in": [], "scope_out": []},
         "state": {"status": TaskStatus.UNKNOWN.value, "completed": [], "in_progress": [], "pending": [], "blockers": []},
         "decisions": [],
@@ -515,12 +631,12 @@ def empty_document(*, handoff_id: str | None = None, created_at: str | None = No
         "files": [],
         "verification": [],
         "errors": [],
-        "next_action": {"instruction": "", "file": None, "command": None, "preconditions": []},
+        "next_action": {"instruction": "", "file": None, "cwd": None, "command": None, "blocking_question": None, "preconditions": []},
         "recent_context": [],
         "evidence": [],
         "risks": [],
         "unknowns": [],
-        "security": {"redactions": [], "untrusted_sources": []},
+        "security": {"redactions": [], "untrusted_sources": [], "secret_scan": {"status": ScanStatus.NOT_RUN.value, "patterns_version": None, "fields_scanned": 0}},
         "integrity": {"algorithm": "sha256", "digest": ""},
     }
 
@@ -556,7 +672,10 @@ def _normalize_document(value: object, *, allow_missing_integrity: bool) -> dict
     if not isinstance(value, dict):
         raise SchemaError("handoff must be a JSON object")
     _closed(value, TOP_LEVEL_FIELDS, "handoff")
-    if value.get("schema_version") != "1.0":
+    declared = value.get("schema_version")
+    if declared in SUPERSEDED_SCHEMA_VERSIONS:
+        raise SchemaError(f"capsule uses superseded schema {declared}; re-create it with schema {SCHEMA_VERSION}")
+    if declared != SCHEMA_VERSION:
         raise SchemaError("unsupported schema_version")
     handoff_id = _text(value.get("handoff_id", ""), label="handoff_id", maximum=128, allow_empty=False)
     try:
@@ -567,7 +686,7 @@ def _normalize_document(value: object, *, allow_missing_integrity: bool) -> dict
     if not is_rfc3339_utc(created_at):
         raise SchemaError("created_at must be RFC3339 UTC")
     result = {
-        "schema_version": "1.0",
+        "schema_version": SCHEMA_VERSION,
         "handoff_id": handoff_id,
         "created_at": created_at,
         "source": _source(value.get("source", {})),
@@ -605,7 +724,7 @@ class HandoffDocument:
     value: dict[str, Any]
 
     @classmethod
-    def from_dict(cls, value: object) -> "HandoffDocument":
+    def from_dict(cls, value: object) -> HandoffDocument:
         return cls(validate_document(value))
 
     def to_dict(self) -> dict[str, Any]:

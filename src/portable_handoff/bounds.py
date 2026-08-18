@@ -22,6 +22,11 @@ class Bounds:
     max_nesting: int = 14
     max_list_items: int = 256
     max_changed_files: int = 2_000
+    # Kept small deliberately. This list orients a reader and flags drift; it
+    # is not a diff, and the files that matter to the task are in `files`.
+    # Staying well under max_list_items also keeps a very dirty worktree
+    # parseable by finalize.
+    max_recorded_changed_files: int = 25
     max_file_symbols: int = 128
     max_recent_context: int = 64
     max_evidence: int = 512

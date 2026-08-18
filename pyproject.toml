@@ -23,6 +23,8 @@ dependencies = []
 dev = [
   "pytest>=8.0",
   "build>=1.0",
+  "ruff>=0.6",
+  "mypy>=1.11",
 ]
 
 [project.scripts]
@@ -40,3 +42,28 @@ portable_handoff = ["py.typed", "resources/*.json"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["dist", "build"]
+
+[tool.ruff.lint]
+# Correctness and modernization rules. Line length is left to the formatter so
+# that a long, deliberate one-line dictionary literal is not a lint failure.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+# The quality evaluator adjusts sys.path before importing the package so it can
+# run as a standalone script as well as under pytest.
+"tests/quality/evaluate_quality.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true

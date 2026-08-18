@@ -4,9 +4,6 @@ import json
 import subprocess
 from pathlib import Path
 
-import pytest
-
-from portable_handoff.canonical import digest_document
 from portable_handoff.finalize import finalize
 from portable_handoff.load import load_capsule
 from portable_handoff.preflight import collect_preflight, serialize_preflight
