@@ -71,6 +71,10 @@ never add a test fixture containing a real credential.
 
 ## Style
 
+Formatting is not enforced in CI. `ruff check` runs and must pass; `ruff
+format` is available if you want it, but the codebase has not been run through
+it, so please do not reformat files you are not otherwise changing.
+
 Match the surrounding code. Comments explain why a constraint exists, not what
 a line does. Keep public errors free of secrets, paths outside the repository,
 and raw subprocess output.

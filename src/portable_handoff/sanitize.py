@@ -225,9 +225,19 @@ def _is_reparse_or_symlink(path: Path) -> bool:
 
 
 def ensure_no_symlink(path: Path, *, root: Path | None = None) -> None:
+    """Reject a symlink or Windows reparse point on the way to ``path``.
+
+    With a root, every component from the root down is checked; that is the
+    containment case. Without one there is no boundary to contain anything
+    within, so only the target itself is checked. Walking to the filesystem
+    root instead would reject ordinary system layouts: /var and /tmp are
+    symlinks on macOS, which made every read under a temp directory fail.
+    """
     path = path.absolute()
     if root is None:
-        root = (path.anchor and Path(path.anchor)) or (Path.cwd().anchor and Path(Path.cwd().anchor)) or Path.cwd()
+        if _is_reparse_or_symlink(path):
+            raise UnsafePathError("symlink or reparse point rejected")
+        return
     root = root.absolute()
     try:
         relative = path.relative_to(root)
@@ -241,20 +251,22 @@ def ensure_no_symlink(path: Path, *, root: Path | None = None) -> None:
 
 
 def safe_read_bytes(path: str | Path, *, maximum: int = DEFAULT_BOUNDS.max_capsule_bytes, root: str | Path | None = None) -> bytes:
-    candidate = Path(path)
+    candidate = Path(path).absolute()
     if root is not None:
-        root_path = Path(root).resolve()
+        # Containment is judged on the resolved target, so a link pointing out
+        # of the root cannot smuggle a read past this gate.
         resolved = candidate.resolve(strict=False)
+        root_path = Path(root).resolve()
         try:
             if os.path.commonpath((str(root_path), str(resolved))) != str(root_path):
                 raise UnsafePathError("read path escapes allowed root")
         except ValueError as exc:
             raise UnsafePathError("read path root mismatch") from exc
-        ensure_no_symlink(resolved, root=root_path)
-        candidate = resolved
+        # The link check runs on the path as given. Resolving first would erase
+        # the symlink this is meant to reject.
+        ensure_no_symlink(candidate, root=Path(root).absolute())
     else:
-        candidate = candidate.absolute()
-        ensure_no_symlink(candidate, root=Path(candidate.anchor or Path.cwd().anchor or Path.cwd()))
+        ensure_no_symlink(candidate)
     try:
         before = candidate.stat()
     except FileNotFoundError as exc:

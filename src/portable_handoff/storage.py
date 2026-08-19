@@ -52,12 +52,12 @@ def atomic_write(path: str | Path, data: bytes | str, *, force: bool = False, ma
     if len(raw) > maximum:
         raise LimitError("output exceeds its safety bound")
     raw_parent = target.parent.absolute()
-    anchor = Path(target.anchor or Path.cwd().anchor or Path.cwd())
-    ensure_no_symlink(raw_parent, root=anchor)
+    ensure_no_symlink(raw_parent)
     parent = raw_parent.resolve()
     parent.mkdir(parents=True, exist_ok=True)
     target = parent / target.name
-    ensure_no_symlink(parent, root=anchor)
+    if target.is_symlink():
+        raise UnsafePathError("refusing to write through a symlink")
     if target.exists() and not force:
         raise CollisionError()
     temp_path: Path | None = None
