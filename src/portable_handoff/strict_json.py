@@ -48,10 +48,6 @@ def loads_strict(data: str | bytes, *, bounds: Bounds = DEFAULT_BOUNDS, label: s
     return value
 
 
-class HandoffJSONError(Exception):
-    """Internal marker retained for compatibility with older callers."""
-
-
 def _normalize_unicode(value: Any) -> Any:
     if isinstance(value, str):
         return unicodedata.normalize("NFC", value)

@@ -67,10 +67,6 @@ class CommandRisk:
     level: str
     reasons: tuple[str, ...]
 
-    @property
-    def needs_review(self) -> bool:
-        return self.level != READ_ONLY
-
     def to_dict(self) -> dict[str, object]:
         return {"level": self.level, "reasons": list(self.reasons)}
 

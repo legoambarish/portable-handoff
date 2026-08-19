@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -715,17 +714,3 @@ def validate_document(value: object) -> dict[str, Any]:
     """Normalize and validate a complete, integrity-bearing document."""
     result = _normalize_document(value, allow_missing_integrity=False)
     return result
-
-
-@dataclass(frozen=True)
-class HandoffDocument:
-    """Small typed facade over the exact JSON contract."""
-
-    value: dict[str, Any]
-
-    @classmethod
-    def from_dict(cls, value: object) -> HandoffDocument:
-        return cls(validate_document(value))
-
-    def to_dict(self) -> dict[str, Any]:
-        return dict(self.value)

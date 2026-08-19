@@ -1,0 +1,31 @@
+{
+  "task": {
+    "goal": "Add exponential backoff and a retry cap to the payment retry path",
+    "definition_of_done": [
+      {"text": "Retries stop after five attempts instead of running forever", "provenance": "conversation:user", "trust": "claimed"},
+      {"text": "Delay grows between attempts instead of a fixed one-second sleep", "provenance": "conversation:user", "trust": "claimed"}
+    ]
+  },
+  "state": {
+    "status": "in_progress",
+    "completed": ["Read call_with_retry and found the fixed one-second delay and unbounded attempts"],
+    "pending": ["Add a max-attempts cap", "Switch the fixed delay to exponential backoff"]
+  },
+  "constraints": [
+    {"text": "Do not change the function signature; other call sites depend on it", "provenance": "conversation:user", "trust": "claimed"}
+  ],
+  "user_corrections": [
+    {"text": "Cap attempts at five, not eight", "provenance": "conversation:user", "trust": "claimed"}
+  ],
+  "files": [
+    {"path": "src/retry.py", "symbols": ["call_with_retry"], "role": "the function being changed"}
+  ],
+  "next_action": {
+    "instruction": "Change attempts default to 5 and multiply delay by 2 after each failed attempt",
+    "file": "src/retry.py",
+    "command": "git status --short"
+  },
+  "risks": [
+    "The unbounded attempts default is currently live in production; capping it changes behavior for every caller that relies on the default"
+  ]
+}

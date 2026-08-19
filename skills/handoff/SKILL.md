@@ -51,10 +51,10 @@ Run this before anything else:
 portable-handoff doctor --cwd .
 ```
 
-- `"capability":"supported"` — proceed.
-- `"capability":"degraded"` — proceed, and quote the reason; repository facts
+- `"capability":"supported"`: proceed.
+- `"capability":"degraded"`: proceed, and quote the reason; repository facts
   will be recorded as unknown.
-- `"capability":"unsupported"` — **stop**. This host cannot produce a capsule.
+- `"capability":"unsupported"`: **stop**. This host cannot produce a capsule.
   Say so plainly, quote the `reason`, and offer the fallback below. Do not
   produce a prose summary and call it a handoff.
 

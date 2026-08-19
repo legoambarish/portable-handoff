@@ -11,11 +11,39 @@ message; re-create them. Neither shipped outside pre-release builds.
 
 ### Added
 
-- `project.changed_files_total`, so a bounded sample of changed files can no
-  longer read as a clean tree.
+- `next_action.cwd` for the directory a step runs in, and
+  `next_action.blocking_question` for a user decision that gates it. Setting
+  the question forces `state.status` to `blocked` and appends a matching
+  `state.blockers` entry, so a later model can't read "no blockers" while a
+  decision is outstanding.
+- `project.worktrees`, `project.remotes`, `project.head_published`, and
+  `project.changed_files_total`. Whether a commit exists only on one machine,
+  and whether a dirty tree's file list was truncated, are now recorded facts
+  instead of inferences.
+- `security.secret_scan`, recording scan status, the pattern-set version, and
+  how many text fields were inspected, so an empty redaction list no longer
+  reads the same as a scan that never ran.
+- A `Security and Redaction` section in the rendered Markdown, plus file
+  hashes, file roles, worktrees, remotes, and per-verification observation
+  times, previously present only in the embedded JSON.
+- Command risk classification (`read_only`, `review`, `dangerous`) at load
+  time. The briefing prints a next-action command as inert, fenced,
+  review-required text rather than an authoritative step.
+- Capsule age in the briefing, with a warning past seven days.
+- `portable-handoff doctor --cwd .`, reporting whether a host can produce a
+  capsule at all (`supported` / `degraded` / `unsupported`) before one is
+  attempted, and exiting non-zero when it can't.
+- `finalize` and `load --format json` print an explicit `outcome` line
+  carrying the path, schema version, integrity digest, and validation result.
+  The skill requires models to quote it verbatim rather than describe what
+  they believe happened.
+- `portable-handoff export PATH --format prose|briefing|json`, emitting one
+  half of a validated capsule for pasting into a chat.
+- Developer Certificate of Origin (`DCO.txt`), documented in `CONTRIBUTING.md`
+  and the pull-request template.
 - Trust is capped at the source: `verified` now requires a deterministic
-  provenance (`git`, `tool`, `test`, `file`, `transcript`) and is downgraded to
-  `claimed` otherwise, everywhere a draft supplies it rather than only inside
+  provenance (`git`, `tool`, `test`, `file`, `transcript`) and is downgraded
+  to `claimed` otherwise, wherever a draft supplies it, not only inside
   `verification`.
 
 ### Changed
@@ -23,54 +51,18 @@ message; re-create them. Neither shipped outside pre-release builds.
 - The embedded JSON omits keys whose value is null or an empty list, which a
   reader re-expands from schema defaults. Roughly 9% off the JSON half. The
   integrity digest is unchanged: it is still computed over the fully expanded
-  document, so this is not a change to the digest definition.
+  document.
 - `changed_files` records a 25-entry sample rather than up to 2,000, with at
-  most 10 rendered in prose. It orients a reader and flags drift; it is not a
-  diff, and the files that matter to a task belong in `files`.
+  most 10 rendered in prose, plus the total. It orients a reader and flags
+  drift; it is not a diff, and the files that matter to a task belong in
+  `files`.
 - Worktree prose lists only the current worktree and any sharing the recorded
   branch, with a count of the rest. The full list stays in the JSON.
 - A derived blocker points at the blocking question instead of restating it.
 - `preflight --output` defaults to a file instead of stdout. On a repository
-  with 304 modified files the previous default printed roughly 48,000 tokens of
-  JSON into the calling model's context; it now prints a ~105 token summary
-  naming the branch, dirty state, changed-file count, and warnings.
-
-### Added
-
-- `next_action.cwd` so a step states which directory it runs in, and
-  `next_action.blocking_question` for a user decision that gates the step.
-  Setting the question forces `state.status` to `blocked` and appends a
-  matching `state.blockers` entry, so a later model cannot read "no blockers"
-  while a decision is outstanding.
-- `project.worktrees`, `project.remotes`, and `project.head_published`.
-  Preflight now records every configured remote, every linked worktree, and
-  whether the recorded commit is reachable from any remote-tracking branch,
-  so "this release exists only on one machine" is a verified fact rather than
-  an inference.
-- `security.secret_scan` recording scan status, the secret-pattern set version,
-  and the number of text fields inspected. An empty redaction list no longer
-  looks the same as a scan that never ran.
-- A `Security and Redaction` section in the rendered Markdown, plus file
-  hashes, file roles, worktrees, remotes, and per-verification observation
-  times. These were previously present only in the embedded JSON.
-- Command risk classification (`read_only`, `review`, `dangerous`) computed at
-  load time in `command_safety.py`. The briefing prints a next-action command
-  as inert, fenced, review-required text instead of an authoritative step.
-- Capsule age in the briefing, and an explicit warning past seven days.
-- `portable-handoff doctor --cwd .` reports whether a host can produce a capsule
-  at all (`supported` / `degraded` / `unsupported`) before one is attempted, and
-  exits non-zero when it cannot. An accuracy audit found models emitting prose
-  summaries and calling them handoffs on hosts with no filesystem.
-- `finalize` and `load --format json` print an explicit `outcome` line carrying
-  the path, schema version, integrity digest, and validation result. The skill
-  now requires models to quote it verbatim rather than describe what they
-  believe happened; the same audit caught a model reporting a schema version, a
-  validator error, and a migration that had not occurred.
-- Developer Certificate of Origin (`DCO.txt`), documented in `CONTRIBUTING.md`
-  and the pull-request template.
-- `portable-handoff export PATH --format prose|briefing|json` emits one half of
-  a validated capsule, for when a capsule has to be pasted into a chat rather
-  than loaded through the CLI.
+  with 304 modified files the previous default printed roughly 48,000 tokens
+  of JSON into the calling model's context; it now prints a ~105 token
+  summary naming the branch, dirty state, changed-file count, and warnings.
 
 ### Fixed
 

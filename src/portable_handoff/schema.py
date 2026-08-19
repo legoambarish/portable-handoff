@@ -1,4 +1,5 @@
-"""Runtime-authoritative contract validation and schema discovery."""
+"""Schema discovery. `models.py` is the authoritative contract; the JSON
+Schema this module locates is interoperable documentation for other readers."""
 
 from __future__ import annotations
 
@@ -6,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .models import TOP_LEVEL_FIELDS, validate_document
+from .models import TOP_LEVEL_FIELDS
 
 
 def schema_path() -> Path:
@@ -20,9 +21,4 @@ def load_schema() -> dict[str, Any]:
     return json.loads(schema_path().read_text(encoding="utf-8"))
 
 
-def validate_schema_document(value: object) -> dict[str, Any]:
-    """Validate with Python's strict contract; the JSON Schema is interoperable documentation."""
-    return validate_document(value)
-
-
-__all__ = ["TOP_LEVEL_FIELDS", "load_schema", "schema_path", "validate_schema_document"]
+__all__ = ["TOP_LEVEL_FIELDS", "load_schema", "schema_path"]
