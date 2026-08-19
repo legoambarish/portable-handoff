@@ -17,6 +17,24 @@ supplies the meaning and local code supplies the facts. Git state, file hashes
 and timestamps come from your machine, not from the model's recollection. Every
 claim is labelled with where it came from and how much to trust it.
 
+## Contents
+
+- [What a capsule gets you](#what-a-capsule-gets-you)
+- [Install](#install)
+  - [Claude Code](#claude-code)
+  - [OpenAI Codex CLI](#openai-codex-cli)
+  - [Cursor](#cursor)
+  - [ChatGPT, or anything with no shell](#chatgpt-or-anything-with-no-shell)
+  - [Anything else with a shell](#anything-else-with-a-shell)
+- [Have your agent install this for you](#have-your-agent-install-this-for-you)
+- [Creating one](#creating-one)
+- [Reading one](#reading-one)
+- [Where it runs](#where-it-runs)
+- [Security](#security)
+- [Limits](#limits)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## What a capsule gets you
 
 Loading one produces a briefing sized for a fresh session:
