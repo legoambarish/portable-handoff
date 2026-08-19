@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import stat
+import sys
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -213,7 +214,10 @@ def _is_reparse_or_symlink(path: Path) -> bool:
         return False
     if stat.S_ISLNK(info.st_mode):
         return True
-    if os.name == "nt":
+    # sys.platform, not os.name, because mypy treats a sys.platform check as
+    # unreachable on the platform it doesn't apply to and skips the block, so
+    # ctypes.windll (Windows-only in typeshed) is never checked on Linux CI.
+    if sys.platform == "win32":
         try:
             import ctypes
 

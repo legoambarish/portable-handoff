@@ -8,7 +8,7 @@ from typing import Any
 
 from ..bounds import DEFAULT_BOUNDS, Bounds
 from ..errors import SourceError
-from ..sanitize import safe_read_bytes
+from ..sanitize import ensure_no_symlink, safe_read_bytes
 from ..strict_json import loads_strict
 from .base import SourceAdapter, TranscriptEvent
 
@@ -92,14 +92,18 @@ class TranscriptFileAdapter(SourceAdapter):
             raise SourceError("no approved transcript root was supplied")
         candidate = Path(reference)
         if not candidate.is_absolute():
-            candidate = (self.root / candidate).resolve(strict=False)
-        else:
-            candidate = candidate.resolve(strict=False)
+            candidate = self.root / candidate
+        # Checked on the path as given, before resolving. Resolving first, as
+        # this used to do, follows a symlink to its target and inspects that
+        # instead of the link itself, which is exactly the indirection a
+        # symlink placed inside the approved root depends on.
+        ensure_no_symlink(candidate, root=self.root)
+        candidate = candidate.resolve(strict=False)
         try:
             candidate.relative_to(self.root)
         except ValueError as exc:
             raise SourceError("transcript path is outside the approved root") from exc
-        if not candidate.is_file() or candidate.is_symlink():
+        if not candidate.is_file():
             matches = [item for item in _iter_files(self.root, limit=DEFAULT_BOUNDS.max_filenames) if item.stem == reference or item.name == reference]
             if len(matches) == 1:
                 candidate = matches[0]
