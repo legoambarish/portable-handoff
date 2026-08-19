@@ -49,20 +49,98 @@ things quietly go wrong.
 
 ## Install
 
+Clone the repository. `pip install` alone gets you the CLI, but the skill
+files an agent actually reads live next to it in the same clone, and pip does
+not package them.
+
 ```bash
-pip install git+https://github.com/legoambarish/portable-handoff
+git clone https://github.com/legoambarish/portable-handoff
+cd portable-handoff
+pip install -e .
 portable-handoff doctor --cwd .
 ```
 
-Python 3.11 or newer. No runtime dependencies at all, and no network access,
-account, API key, database, or vector store. `doctor` tells you whether the
-current host can actually produce a capsule before you try.
+Python 3.11 or newer. No runtime dependencies at all, no network access, no
+account, no API key, no database, no vector store. `doctor` prints
+`supported`, `degraded`, or `unsupported` for wherever you just ran it, which
+is worth checking before anything else.
 
-To install the agent skill into a host profile:
+The commands below assume you're inside that clone.
+
+### Claude Code
+
+Skills live in `~/.claude/skills/` for every project on the machine, or in
+`.claude/skills/` for one project only.
+
+```bash
+python scripts/install_skill.py --destination ~/.claude/skills/handoff
+```
+
+Start a new session and `handoff` shows up in the skill list. There's also a
+`/handoff` slash command at `integrations/claude/commands/handoff.md`; copy it
+to `.claude/commands/handoff.md` in a project if you'd rather type the command
+than wait for the skill to trigger on its own.
+
+### OpenAI Codex CLI
+
+Same idea, Codex's own directory: `~/.codex/skills/` machine-wide, or
+`.codex/skills/` for one project.
+
+```bash
+python scripts/install_skill.py --destination ~/.codex/skills/handoff
+```
+
+Codex picks up a new skill on its own, or you can call it directly with
+`$handoff`.
+
+### Cursor
+
+Cursor's agent already has a shell, so it can run the CLI commands above with
+nothing extra installed. If you want it to reach for the skill without being
+told, turn the existing instructions into a project rule:
+
+```bash
+mkdir -p .cursor/rules
+cp integrations/cursor/commands/handoff.md .cursor/rules/handoff.mdc
+```
+
+That file has no frontmatter yet, so add the `alwaysApply` or `globs` block
+Cursor's [rules docs](https://cursor.com/docs/rules) describe if you want it
+to load without being asked.
+
+### ChatGPT, or anything with no shell
+
+There's nowhere here to write a file and no CLI to run `doctor` with, so
+there's nothing to install. Paste the shape from
+`skills/handoff/assets/handoff-template.md` into the chat, have the model fill
+it in, and save what comes back. That's a draft, not a capsule. It has no
+digest and no verified repository facts. Run `finalize` on it later, from a
+machine that has the CLI, to get an actual one.
+
+### Anything else with a shell
 
 ```bash
 python scripts/install_skill.py --destination PATH_TO_HOST_SKILLS/handoff
 ```
+
+`integrations/generic/HANDOFF_INSTRUCTIONS.md` has the same instructions
+written for a host that doesn't read `SKILL.md` on its own.
+
+## Have your agent install this for you
+
+Paste into Claude Code, Codex, Cursor, or anything else with a shell:
+
+> Clone `https://github.com/legoambarish/portable-handoff`, run `pip install -e .`
+> inside the clone, then run `python scripts/install_skill.py --destination`
+> pointed at your own skills directory: `~/.claude/skills/handoff` if you're
+> Claude Code, `~/.codex/skills/handoff` if you're Codex, or wherever else is
+> right for you. Run `portable-handoff doctor --cwd .` afterward and paste its
+> output back to me exactly as printed, with nothing added.
+
+That last instruction is not incidental. The skill's own rule is to quote a
+command's result, not describe it, because a paraphrased success and an
+invented one read the same on the page. Asking for it during install is what
+catches the run that silently failed instead of the one that says it did.
 
 ## Creating one
 
