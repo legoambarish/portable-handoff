@@ -6,8 +6,11 @@ aims to follow semantic versioning once it reaches 1.0.
 
 ## [Unreleased]
 
-Capsule schema `1.2`. Capsules on `1.0` or `1.1` are rejected with an explicit
-message; re-create them. Neither shipped outside pre-release builds.
+## [0.1.0-alpha] - 2026-08-20
+
+First public release. Capsule schema `1.2`. Capsules on `1.0` or `1.1` are
+rejected with an explicit message; re-create them. Neither shipped outside
+pre-release builds.
 
 ### Added
 
