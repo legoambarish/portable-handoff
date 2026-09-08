@@ -176,7 +176,14 @@ def _collect_worktrees(root: Path) -> list[dict[str, Any]]:
             current = {"path": line[len("worktree ") :][: DEFAULT_BOUNDS.max_path_chars], "branch": None, "commit": None, "is_current": False}
         elif line.startswith("HEAD ") and current:
             candidate = line[len("HEAD ") :].strip()
-            current["commit"] = candidate if re.fullmatch(r"[0-9a-f]{40,64}", candidate) else None
+            # An unborn branch (no commits yet) reports HEAD as the all-zero
+            # object id, not a real commit. Recording it verbatim would let a
+            # capsule claim a specific commit exists when nothing has been
+            # committed at all.
+            if re.fullmatch(r"[0-9a-f]{40,64}", candidate) and not _is_null_oid(candidate):
+                current["commit"] = candidate
+            else:
+                current["commit"] = None
         elif line.startswith("branch ") and current:
             reference = line[len("branch ") :].strip()
             current["branch"] = reference[len("refs/heads/") :] if reference.startswith("refs/heads/") else reference
@@ -191,6 +198,11 @@ def _collect_worktrees(root: Path) -> list[dict[str, Any]]:
         # the real root is added explicitly.
         result.insert(0, {"path": str(root).replace("\\", "/"), "branch": None, "commit": None, "is_current": True})
     return result[:64]
+
+
+def _is_null_oid(value: str) -> bool:
+    """Git's all-zero object id, used as a sentinel for "no commit here"."""
+    return bool(value) and set(value) == {"0"}
 
 
 def _same_directory(left: str, right: Path) -> bool:
